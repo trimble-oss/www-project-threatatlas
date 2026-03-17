@@ -43,21 +43,21 @@ The purpose of OWASP ThreatAtlas is to provide an open-source, extensible, and p
 
 ## 🌳 Project Structure
 This repository contains both the project documentation and the application source code:
-- **[ThreatAtlas Tool (App)](https://github.com/OWASP/www-project-threatatlas/threatatlas-app/)**: The source code for the web application.
+- **[ThreatAtlas Tool (App)](https://github.com/OWASP/www-project-threatatlas/tree/main/threatatlas-app)**: The source code for the web application.
 
 ## 📖 Documentation
 For detailed information on how to deploy and use ThreatAtlas, please refer to the following guides:
 
 ### 🛠 Installation & Setup
 If you are looking to install and run the ThreatAtlas tool:
-👉 **[Installation Guide](threatatlas-app/docs/installation.md)**
+👉 **[Installation Guide](https://github.com/OWASP/www-project-threatatlas/tree/main/threatatlas-app/docs/installation.md)**
 
 ### 💻 Development & Contributing
 If you are a developer looking to contribute to the codebase:
-👉 **[Development Guide](threatatlas-app/docs/development.md)**
+👉 **[Development Guide](https://github.com/OWASP/www-project-threatatlas/tree/main/threatatlas-app/docs/development.md)**
 
 ### 👤 User Guide
 If you are an end-user looking to learn how to use the UI:
-👉 **[User Guide](threatatlas-app/docs/user-guide.md)**
+👉 **[User Guide](https://github.com/OWASP/www-project-threatatlas/tree/main/threatatlas-app/docs/user-guide.md)**
 
 ---
