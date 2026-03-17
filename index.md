@@ -4,32 +4,60 @@ layout: col-sidebar
 title: OWASP ThreatAtlas
 tags: example-tag
 level: 2
-type: documentation
-pitch: A very brief, one-line description of your project
+type: tool
+pitch: Collaborative platform for community-driven threat modeling.
 
 ---
 
-The purpose of this project is to develop a comprehensive, community-driven repository of detailed, service-specific threat models that support accurate and practical threat modeling across widely used cloud, container, and web services such as AWS S3, EKS, NGINX, PostgreSQL, and OAuth.
+**OWASP ThreatAtlas** is a platform for community-driven threat modeling. It enables companies to run threat modeling sessions in a collaborative platform by inviting Developers, DevOps, Architects, and Security Engineers to keep track of their services in a dynamic environment. 
 
-This project aims to bridge the gap between generic threat frameworks and the specific security challenges posed by modern infrastructures by providing actionable threat descriptions, multiple categorization perspectives, mitigation guidance, and integrations with existing security tools. Ultimately, it empowers developers, security architects, and operations teams to design and assess systems with better-informed risk management, improving overall security posture in evolving technology landscapes.
+ThreatAtlas brings threat modeling value to the real world by providing a useful platform to create, track, and mitigate all application and service threats in one central place.
 
-### Road Map
-The first year roadmap for the OWASP ThreatAtlas project will focus on establishing a strong foundation, building community engagement, and delivering valuable, actionable threat intelligence. The roadmap includes the following key phases:
+---
 
-* *Months 1–3: Project Setup and Initial Research*
-** Establish project governance, define scope, and onboard initial core contributors.
-** Conduct comprehensive research to collect existing threat data for top services (AWS S3, EKS, NGINX, PostgreSQL, OAuth).
-** Develop templates and documentation standards for threat entries.
-** Launch project website and repository for open access and contributions.
-* *Months 4–6: Threat List Development*
-** Populate the repository with detailed threat entries covering prioritized services, including multi-framework categorizations (STRIDE, MITRE, CWE, CVSS).
-** Begin peer review process for accuracy, relevance, and completeness.
-** Publish initial cheat sheets and example threat models demonstrating practical application.
-* *Months 7–9: Community Building and Outreach*
-** Host webinars, workshops, and community calls to engage security practitioners and domain experts.
-** Promote contributions and feedback to enrich threat data and broaden service coverage.
-** Integrate feedback and enhance documentation and contribution guidelines.
-* *Months 10–12: Refinement and Integration*
-** Implement tooling integrations and APIs for easier adoption in threat modeling and security assessment workflows.
-** Prepare the first formal project release with updated deliverables.
-** Plan for expanding service coverage, ongoing maintenance, and long-term sustainability.
+## 🌟 Mission
+To bridge the gap between generic security frameworks and real-world infrastructure through an interactive, collaborative platform. We aim to democratize threat modeling by enabling teams to visually map architectures, leverage community-driven threat intelligence, and integrate actionable security mitigations directly into their development lifecycle.
+
+
+![ThreatAtlas](/assets/images/threatatlas.jpeg)
+
+
+## 🏗 Why OWASP ThreatAtlas?
+OWASP ThreatAtlas differentiates itself by:
+- Being fully open-source and deployable by organizations
+- Supporting multiple threat modeling frameworks in one platform
+- Combining architecture diagramming with structured threat identification
+- Enabling project-based collaboration
+- Designed for DevSecOps integration (future roadmap)
+- Framework extensibility (organizations can define their own methodology)
+- Built as a modern web application rather than a documentation repository
+
+
+## 🎯 The project purpose
+The purpose of OWASP ThreatAtlas is to provide an open-source, extensible, and practical threat modeling platform that enables organizations to:
+- Design system architecture diagrams
+- Identify and document threats systematically
+- Apply recognized threat modeling frameworks
+- Track mitigations and risk evolution
+- Promote secure-by-design principles
+
+## 🌳 Project Structure
+This repository contains both the project documentation and the application source code:
+- **[ThreatAtlas Tool (App)](https://github.com/OWASP/www-project-threatatlas/threatatlas-app/)**: The source code for the web application.
+
+## 📖 Documentation
+For detailed information on how to deploy and use ThreatAtlas, please refer to the following guides:
+
+### 🛠 Installation & Setup
+If you are looking to install and run the ThreatAtlas tool:
+👉 **[Installation Guide](threatatlas-app/docs/installation.md)**
+
+### 💻 Development & Contributing
+If you are a developer looking to contribute to the codebase:
+👉 **[Development Guide](threatatlas-app/docs/development.md)**
+
+### 👤 User Guide
+If you are an end-user looking to learn how to use the UI:
+👉 **[User Guide](threatatlas-app/docs/user-guide.md)**
+
+---

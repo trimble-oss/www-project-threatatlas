@@ -1,4 +1,57 @@
+# Jekyll
 /Gemfile
 /Gemfile.lock
 /favicon.ico
 _site/
+.jekyll-cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node.js
+node_modules/
+dist/
+build/
+.pnpm-debug.log
+.npm/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+.pdm-python
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Docker
+.docker/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Other
+**/.DS_Store
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.bak
+
+
+# apps
+**/.env*

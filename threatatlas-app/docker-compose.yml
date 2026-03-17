@@ -1,0 +1,76 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: threatatlas-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-threatatlas}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-threatatlas_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-threatatlas}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-threatatlas}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - threatatlas-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: threatatlas-backend
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-threatatlas}:${POSTGRES_PASSWORD:-threatatlas_dev}@postgres:5432/${POSTGRES_DB:-threatatlas}
+      API_TITLE: ${API_TITLE:-ThreatAtlas API}
+      API_VERSION: ${API_VERSION:-1.0.0}
+      DEBUG: ${DEBUG:-True}
+      SECRET_KEY: ${SECRET_KEY:-your-secret-key-here-change-in-production}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-noreply@threatatlas.com}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-ThreatAtlas}
+      SMTP_TLS: ${SMTP_TLS:-True}
+      INVITATION_EXPIRE_HOURS: ${INVITATION_EXPIRE_HOURS:-168}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - threatatlas-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+    container_name: threatatlas-frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:8080"
+    depends_on:
+      - backend
+    networks:
+      - threatatlas-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  threatatlas-network:
+    driver: bridge

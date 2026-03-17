@@ -1,0 +1,34 @@
+{% extends "email_base.html" %}
+
+{% block content %}
+<h2>Welcome to ThreatAtlas! 🚀</h2>
+
+<p>Hi {{ user_name }},</p>
+
+<p>Your account has been successfully created! We're excited to have you on board.</p>
+
+<div class="info-box">
+    <p style="margin: 0;"><strong>Username:</strong> {{ username }}</p>
+    <p style="margin: 8px 0 0 0;"><strong>Email:</strong> {{ email }}</p>
+    <p style="margin: 8px 0 0 0;"><strong>Role:</strong> {{ role_display }}</p>
+</div>
+
+<p><strong>What's Next?</strong></p>
+
+<ul style="color: #555555; margin-left: 20px; margin-bottom: 20px;">
+    <li style="margin-bottom: 10px;">Create your first product to start threat modeling</li>
+    <li style="margin-bottom: 10px;">Draw data flow diagrams with our intuitive editor</li>
+    <li style="margin-bottom: 10px;">Identify threats using STRIDE, PASTA, and other frameworks</li>
+    <li style="margin-bottom: 10px;">Manage mitigations and track your security posture</li>
+</ul>
+
+<center>
+    <a href="{{ app_url }}" class="cta-button">Go to ThreatAtlas</a>
+</center>
+
+<div class="divider"></div>
+
+<p style="font-size: 14px; color: #6b7280;">
+    Need help getting started? Check out our documentation or reach out to your team administrator.
+</p>
+{% endblock %}

@@ -1,17 +1,11 @@
 ### ThreatAtlas Information
-* [Incubator Project](#)
-* [Type of Project](#)
-* [Version 0.0.0](#)
-* [Builder](#)
-* [Breaker](#)
-
-### Downloads or Social Links
-* [Download](#)
-* [Meetup](#)
+* [Incubator Project](https://owasp.org/projects/)
+* [Tooling & Documentation](threatatlas-app/)
+* [Version 0.1.0-alpha](CHANGELOG.md)
 
 ### Code Repository
-* [repo](#)
+* [GitHub Repository](https://github.com/OWASP/www-project-threatatlas)
 
 ### Change Log
-* [changes](#)
+* [CHANGELOG.md](CHANGELOG.md)
 

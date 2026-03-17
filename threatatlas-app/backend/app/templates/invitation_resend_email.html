@@ -1,0 +1,31 @@
+{% extends "email_base.html" %}
+
+{% block content %}
+<h2>Reminder: Your ThreatAtlas Invitation</h2>
+
+<p>Hi there,</p>
+
+<p>This is a friendly reminder that <strong>{{ inviter_name }}</strong> invited you to join ThreatAtlas as a <strong>{{ role_display }}</strong>.</p>
+
+<div class="info-box">
+    <p style="margin: 0;"><strong>Your Role:</strong> {{ role_display }}</p>
+    <p style="margin: 8px 0 0 0; color: #6b7280; font-size: 14px;">{{ role_description }}</p>
+</div>
+
+<p>We noticed you haven't accepted your invitation yet. Click the button below to get started:</p>
+
+<center>
+    <a href="{{ invitation_url }}" class="cta-button">Accept Invitation</a>
+</center>
+
+<p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
+    <strong>Note:</strong> This invitation will expire on <strong>{{ expiry_date }}</strong>. Don't miss out!
+</p>
+
+<div class="divider"></div>
+
+<p style="font-size: 14px; color: #6b7280;">
+    Can't click the button? Copy and paste this URL into your browser:<br>
+    <a href="{{ invitation_url }}" style="color: hsl(15.1111, 55.5556%, 52.3529%); word-break: break-all;">{{ invitation_url }}</a>
+</p>
+{% endblock %}
