@@ -11,7 +11,7 @@ from app.auth.permissions import require_admin
 router = APIRouter(prefix="/users", tags=["users"])
 
 
-@router.get("/", response_model=list[User])
+@router.get("", response_model=list[User])
 def list_users(
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -35,7 +35,7 @@ def list_users(
     return users
 
 
-@router.post("/", response_model=User, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=User, status_code=status.HTTP_201_CREATED)
 def create_user(
     user_data: UserCreateByAdmin,
     current_user: UserModel = Depends(get_current_user),

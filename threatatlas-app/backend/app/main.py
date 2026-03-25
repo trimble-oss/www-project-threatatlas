@@ -39,6 +39,7 @@ app = FastAPI(
     version=settings.api_version,
     debug=settings.debug,
     lifespan=lifespan,
+    redirect_slashes=False,
 )
 
 # Configure CORS

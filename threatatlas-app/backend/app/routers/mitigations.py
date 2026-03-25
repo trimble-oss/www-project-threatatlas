@@ -10,7 +10,7 @@ from app.auth.permissions import require_standard_or_admin
 router = APIRouter(prefix="/mitigations", tags=["mitigations"])
 
 
-@router.get("/", response_model=list[Mitigation])
+@router.get("", response_model=list[Mitigation])
 def list_mitigations(
     framework_id: int | None = None,
     is_custom: bool | None = None,
@@ -64,7 +64,7 @@ def get_mitigation(
     return mitigation
 
 
-@router.post("/", response_model=Mitigation, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=Mitigation, status_code=status.HTTP_201_CREATED)
 def create_mitigation(
     mitigation: MitigationCreate, 
     current_user: UserModel = Depends(get_current_user),

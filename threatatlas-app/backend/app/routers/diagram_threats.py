@@ -30,7 +30,7 @@ def calculate_risk_score_and_severity(likelihood: int | None, impact: int | None
     return risk_score, severity
 
 
-@router.get("/", response_model=list[DiagramThreatWithDetails])
+@router.get("", response_model=list[DiagramThreatWithDetails])
 def list_diagram_threats(
     diagram_id: int | None = None,
     model_id: int | None = None,
@@ -85,7 +85,7 @@ def get_diagram_threat(
     return diagram_threat
 
 
-@router.post("/", response_model=DiagramThreat, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=DiagramThreat, status_code=status.HTTP_201_CREATED)
 def create_diagram_threat(
     diagram_threat: DiagramThreatCreate,
     current_user: UserModel = Depends(get_current_user),

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": { "value": "lista-preprod" },
+    "location": { "value": "westus" },
+    "dbAdminLogin": { "value": "threatatlas_admin" },
+    "dbAdminPassword": { "reference": { "keyVault": { "id": "/subscriptions/24050c10-cf2d-4855-8847-3ee38d80eb60/resourceGroups/threatatlas-lista-preprod-rg/providers/Microsoft.KeyVault/vaults/ta-lista-pp-kv" }, "secretName": "db-admin-password" } },
+    "appSecretKey": { "reference": { "keyVault": { "id": "/subscriptions/24050c10-cf2d-4855-8847-3ee38d80eb60/resourceGroups/threatatlas-lista-preprod-rg/providers/Microsoft.KeyVault/vaults/ta-lista-pp-kv" }, "secretName": "app-secret-key" } },
+    "imageTag": { "value": "latest" },
+    "smtpHost": { "value": "smtp.gmail.com" },
+    "smtpPort": { "value": 587 },
+    "smtpUsername": { "value": "" },
+    "smtpPassword": { "reference": { "keyVault": { "id": "/subscriptions/24050c10-cf2d-4855-8847-3ee38d80eb60/resourceGroups/threatatlas-lista-preprod-rg/providers/Microsoft.KeyVault/vaults/ta-lista-pp-kv" }, "secretName": "smtp-password" } },
+    "smtpFromEmail": { "value": "noreply@threatatlas.com" },
+    "smtpFromName": { "value": "ThreatAtlas" }
+  }
+}

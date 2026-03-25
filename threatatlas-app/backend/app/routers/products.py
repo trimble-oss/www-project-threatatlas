@@ -11,7 +11,7 @@ from app.auth.permissions import require_standard_or_admin, can_access_product, 
 router = APIRouter(prefix="/products", tags=["products"])
 
 
-@router.get("/", response_model=list[Product])
+@router.get("", response_model=list[Product])
 def list_products(
     current_user: UserModel = Depends(get_current_user),
     skip: int = 0,
@@ -74,7 +74,7 @@ def get_product(
     return product
 
 
-@router.post("/", response_model=Product, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=Product, status_code=status.HTTP_201_CREATED)
 def create_product(
     product: ProductCreate,
     current_user: UserModel = Depends(get_current_user),

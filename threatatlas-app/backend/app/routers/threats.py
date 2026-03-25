@@ -10,7 +10,7 @@ from app.auth.permissions import require_standard_or_admin
 router = APIRouter(prefix="/threats", tags=["threats"])
 
 
-@router.get("/", response_model=list[Threat])
+@router.get("", response_model=list[Threat])
 def list_threats(
     framework_id: int | None = None,
     is_custom: bool | None = None,
@@ -66,7 +66,7 @@ def get_threat(
     return threat
 
 
-@router.post("/", response_model=Threat, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=Threat, status_code=status.HTTP_201_CREATED)
 def create_threat(
     threat: ThreatCreate, 
     current_user: UserModel = Depends(get_current_user),

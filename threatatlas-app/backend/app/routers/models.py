@@ -13,7 +13,7 @@ from app.auth.dependencies import get_current_user
 router = APIRouter(prefix="/models", tags=["models"])
 
 
-@router.post("/", response_model=ModelWithFramework, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=ModelWithFramework, status_code=status.HTTP_201_CREATED)
 def create_model(
     model_data: ModelCreate,
     current_user: User = Depends(get_current_user),
@@ -188,7 +188,7 @@ def delete_model(
     return None
 
 
-@router.get("/", response_model=List[ModelWithFramework])
+@router.get("", response_model=List[ModelWithFramework])
 def list_all_models(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)

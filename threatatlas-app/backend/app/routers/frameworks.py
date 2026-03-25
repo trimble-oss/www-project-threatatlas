@@ -10,7 +10,7 @@ from app.auth.permissions import require_standard_or_admin
 router = APIRouter(prefix="/frameworks", tags=["frameworks"])
 
 
-@router.get("/", response_model=list[Framework])
+@router.get("", response_model=list[Framework])
 def list_frameworks(
     skip: int = 0,
     limit: int = 100,
@@ -53,7 +53,7 @@ def get_framework(
     return framework
 
 
-@router.post("/", response_model=Framework, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=Framework, status_code=status.HTTP_201_CREATED)
 def create_framework(
     framework: FrameworkCreate,
     current_user: UserModel = Depends(get_current_user),

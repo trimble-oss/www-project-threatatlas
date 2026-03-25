@@ -26,7 +26,7 @@ from app.config import settings
 router = APIRouter(prefix="/invitations", tags=["invitations"])
 
 
-@router.post("/", response_model=InvitationResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=InvitationResponse, status_code=status.HTTP_201_CREATED)
 def create_invitation(
     data: InvitationCreate,
     current_user: UserModel = Depends(get_current_user),
@@ -103,7 +103,7 @@ def create_invitation(
     return invitation
 
 
-@router.get("/", response_model=list[InvitationResponse])
+@router.get("", response_model=list[InvitationResponse])
 def list_invitations(
     current_user: UserModel = Depends(get_current_user),
     db: Session = Depends(get_db),

@@ -9,24 +9,12 @@ export const api = axios.create({
   },
 });
 
-// Add request interceptor to include auth token and ensure trailing slashes
+// Add request interceptor to include auth token
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-
-  // Add trailing slash to URL if not present (prevents 307 redirects from FastAPI)
-  if (config.url && !config.url.endsWith('/') && !config.url.includes('?')) {
-    config.url = `${config.url}/`;
-  } else if (config.url && !config.url.endsWith('/') && config.url.includes('?')) {
-    // Handle URLs with query parameters
-    const [path, query] = config.url.split('?');
-    if (!path.endsWith('/')) {
-      config.url = `${path}/?${query}`;
-    }
-  }
-
   return config;
 });
 

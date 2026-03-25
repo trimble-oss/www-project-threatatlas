@@ -11,7 +11,7 @@ from app.models.enums import UserRole
 router = APIRouter(prefix="/diagram-mitigations", tags=["diagram-mitigations"])
 
 
-@router.get("/", response_model=list[DiagramMitigationWithDetails])
+@router.get("", response_model=list[DiagramMitigationWithDetails])
 def list_diagram_mitigations(
     diagram_id: int | None = None,
     model_id: int | None = None,
@@ -66,7 +66,7 @@ def get_diagram_mitigation(
     return diagram_mitigation
 
 
-@router.post("/", response_model=DiagramMitigation, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=DiagramMitigation, status_code=status.HTTP_201_CREATED)
 def create_diagram_mitigation(
     diagram_mitigation: DiagramMitigationCreate,
     current_user: UserModel = Depends(get_current_user),
