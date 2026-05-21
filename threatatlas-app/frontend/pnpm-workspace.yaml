@@ -1,0 +1,13 @@
+allowBuilds:
+  esbuild: true
+  msw: true
+minimumReleaseAgeExclude:
+  - shadcn@4.8.0
+overrides:
+  brace-expansion@1: 1.1.13
+  brace-expansion@5: 5.0.6
+  fast-uri: 3.1.2
+  hono: 4.12.18
+  ip-address: 10.1.1
+  lodash: 4.18.1
+  picomatch: 4.0.4
