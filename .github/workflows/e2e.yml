@@ -1,0 +1,106 @@
+name: E2E Tests (PR / QA)
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    name: Playwright E2E (start backend + frontend)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: threatatlas
+          POSTGRES_PASSWORD: threatatlas_dev
+          POSTGRES_DB: threatatlas_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U threatatlas"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11 and PDM
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PDM
+        run: pip install pdm
+
+      - name: Install backend deps
+        run: |
+          cd threatatlas-app/backend
+          pdm install --dev
+
+      - name: Apply backend migrations
+        env:
+          TEST_DATABASE_URL: postgresql://threatatlas:threatatlas_dev@localhost:5432/threatatlas_test
+        run: |
+          cd threatatlas-app/backend
+          pdm run migrate
+
+      - name: Start backend (uvicorn) in background
+        run: |
+          cd threatatlas-app/backend
+          # start backend on 0.0.0.0:8000 and log output
+          nohup pdm run start > backend.log 2>&1 &
+          # wait for backend to be reachable
+          n=0
+          until nc -z localhost 8000 || [ $n -ge 30 ]; do
+            sleep 1
+            n=$((n+1))
+            echo "waiting for backend... $n"
+          done
+          if ! nc -z localhost 8000; then
+            echo "Backend did not start in time"
+            cat backend.log || true
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install frontend deps
+        run: |
+          cd threatatlas-app/frontend
+          pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: |
+          cd threatatlas-app/frontend
+          npx playwright install --with-deps
+
+      - name: Run Playwright E2E tests
+        env:
+          # ensure tests see the backend and use the test DB
+          TEST_DATABASE_URL: postgresql://threatatlas:threatatlas_dev@localhost:5432/threatatlas_test
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          cd threatatlas-app/frontend
+          pnpm test:e2e

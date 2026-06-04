@@ -1,0 +1,10 @@
+{
+  "name": "idas",
+  "display_name": "Trimble IDAS",
+  "issuer": "https://id.trimble.com",
+  "metadata_url": null,
+  "client_id": "YOUR_IDAS_CLIENT_ID",
+  "client_secret": "YOUR_IDAS_CLIENT_SECRET",
+  "scopes": "openid email profile",
+  "is_enabled": true
+}
