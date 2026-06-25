@@ -2862,9 +2862,12 @@ packages:
   html-escaper@3.0.3:
     resolution: {integrity: sha512-RuMffC89BOWQoY0WKGpIhn5gX3iI54O6nRA0yC124NYVtzjmFWBIiFd8M0x+ZdX0P9R4lADg1mgP8C7PxGOWuQ==}
 
+<<<<<<< HEAD
   html-to-image@1.11.13:
     resolution: {integrity: sha512-cuOPoI7WApyhBElTTb9oqsawRvZ0rHhaHwghRLlTuffoD1B2aDemlCruLeZrUIIdvG7gs9xeELEPm6PhuASqrg==}
 
+=======
+>>>>>>> 9631090 (Implement code changes to enhance functionality and improve performance)
   htmlparser2@10.1.0:
     resolution: {integrity: sha512-VTZkM9GWRAtEpveh7MSF6SjjrpNVNNVJfFup7xTY3UpFtm67foy9HDVXneLtFVt4pMz5kZtgNcvCniNFb1hlEQ==}
 
@@ -7026,8 +7029,11 @@ snapshots:
 
   html-escaper@3.0.3: {}
 
+<<<<<<< HEAD
   html-to-image@1.11.13: {}
 
+=======
+>>>>>>> 9631090 (Implement code changes to enhance functionality and improve performance)
   htmlparser2@10.1.0:
     dependencies:
       domelementtype: 2.3.0
