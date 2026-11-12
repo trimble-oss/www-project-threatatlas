@@ -32,18 +32,10 @@ import {
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -52,8 +44,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Plus,
-  MoreVertical,
   Pencil,
+  Copy,
   Trash2,
   Box,
   Grid3x3,
@@ -69,11 +61,11 @@ import { ImportDrawioButton } from '@/components/ImportDrawioButton';
 import NewDiagramWizard from '@/components/NewDiagramWizard';
 
 const STATUS_CLASSES: Record<string, string> = {
-  design: 'border-sky-500/50 text-sky-700 dark:text-sky-300 bg-sky-500/10',
-  development: 'border-indigo-500/50 text-indigo-700 dark:text-indigo-300 bg-indigo-500/10',
-  testing: 'border-amber-500/50 text-amber-700 dark:text-amber-300 bg-amber-500/10',
-  deployment: 'border-purple-500/50 text-purple-700 dark:text-purple-300 bg-purple-500/10',
-  production: 'border-emerald-500/50 text-emerald-700 dark:text-emerald-300 bg-emerald-500/10',
+  design: 'border-info/50 text-info  bg-info/10',
+  development: 'border-violet/50 text-violet  bg-violet/10',
+  testing: 'border-warning/50 text-warning  bg-warning/10',
+  deployment: 'border-violet/50 text-violet  bg-violet/10',
+  production: 'border-success/50 text-success  bg-success/10',
 };
 const getStatusBadgeClass = (status: ProductStatus | null): string =>
   status ? STATUS_CLASSES[status] ?? '' : '';
@@ -91,6 +83,7 @@ interface Product {
   owner_name: string | null;
   owner_email: string | null;
   jira_project_key: string | null;
+  can_edit: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -147,9 +140,13 @@ export default function Products() {
   const [loading, setLoading] = useState(true);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteDiagramOpen, setDeleteDiagramOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [duplicateProduct, setDuplicateProduct] = useState<Product | null>(null);
+  const [duplicateName, setDuplicateName] = useState('');
+  const [duplicating, setDuplicating] = useState(false);
   const [selectedDiagramId, setSelectedDiagramId] = useState<number | null>(null);
   const [expandedDiagrams, setExpandedDiagrams] = useState<Record<number, boolean>>({});
 
@@ -285,8 +282,32 @@ export default function Products() {
     setDeleteOpen(true);
   };
 
+  const openDuplicateDialog = (product: Product) => {
+    setDuplicateProduct(product);
+    setDuplicateName(`${product.name} Copy`);
+    setDuplicateOpen(true);
+  };
+
+  const handleDuplicate = async () => {
+    if (!duplicateProduct || !duplicateName.trim() || duplicating) return;
+    setDuplicating(true);
+    try {
+      const response = await productsApi.duplicate(duplicateProduct.id, duplicateName.trim());
+      setDuplicateOpen(false);
+      setDuplicateProduct(null);
+      await loadProducts();
+      toast.success('Product duplicated with a fresh security workflow');
+      navigate(`/products/${response.data.id}`);
+    } catch (error) {
+      console.error('Error duplicating product:', error);
+      toast.error('Failed to duplicate product');
+    } finally {
+      setDuplicating(false);
+    }
+  };
+
   return (
-    <div className="flex-1 space-y-4 mx-auto p-4">
+    <div className="flex-1 w-full space-y-4 p-4 md:p-6 lg:p-8">
       {/* Page Header */}
       <div className="flex justify-end">
         {canWrite && (
@@ -301,11 +322,11 @@ export default function Products() {
       </div>
 
       {/* Content */}
-      <div className="mx-auto">
+      <div>
         {loading ? (
           <ProductsSkeleton />
         ) : products.length === 0 ? (
-          <Card className="border-dashed border-2 rounded-xl">
+          <Card className="border-dashed rounded-xl">
             <CardContent className="flex flex-col items-center justify-center py-16 px-6">
               <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-muted/60 to-muted/40 mb-4 shadow-sm">
                 <Box className="h-10 w-10 text-muted-foreground" />
@@ -326,7 +347,7 @@ export default function Products() {
           </Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {products.map((product, index) => {
+            {products.map((product) => {
               const productDiagrams = diagrams[product.id] || [];
               const diagramCount = productDiagrams.length;
               const isExpanded = !!expandedDiagrams[product.id];
@@ -335,8 +356,7 @@ export default function Products() {
               return (
                 <Card
                   key={product.id}
-                  className="animate-fadeInUp group flex flex-col hover:shadow-lg hover:border-primary/20 transition-all duration-300 rounded-xl border-border/60 overflow-hidden cursor-pointer"
-                  style={{ animationDelay: `${index * 50}ms` }}
+                  className="group flex flex-col hover:shadow-lg hover:border-primary/20 transition-all duration-300 rounded-xl border-border/60 overflow-hidden cursor-pointer"
                   onClick={(e) => {
                     const target = e.target as HTMLElement;
                     if (target.closest('[data-card-action], button, a, [role="menuitem"]')) return;
@@ -347,7 +367,7 @@ export default function Products() {
                     {/* Title row: icon + name + inline actions */}
                     <div className="flex items-start gap-3">
                       <div
-                        className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 shrink-0 group-hover:bg-primary/15 group-hover:scale-105 transition-all duration-300 cursor-pointer mt-0.5"
+                        className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 shrink-0 group-hover:bg-primary/15 transition-all duration-300 cursor-pointer mt-0.5"
                         onClick={() => navigate(`/products/${product.id}`)}
                       >
                         <Box className="h-4 w-4 text-primary" />
@@ -368,7 +388,7 @@ export default function Products() {
                           </span>
                         </div>
                       </div>
-                      {canWrite && (
+                      {canWrite && product.can_edit && (
                         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                           <ShareProductDialog productId={product.id} productName={product.name}
                             isPublic={product.is_public} onProductUpdate={loadProducts}
@@ -386,6 +406,15 @@ export default function Products() {
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>Edit</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" data-card-action className="h-7 w-7"
+                                onClick={(e) => { e.stopPropagation(); openDuplicateDialog(product); }}>
+                                <Copy className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Duplicate</TooltipContent>
                           </Tooltip>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -510,6 +539,46 @@ export default function Products() {
           </div>
         )}
       </div>
+
+      {/* Duplicate Dialog */}
+      <Dialog
+        open={duplicateOpen}
+        onOpenChange={(open) => {
+          setDuplicateOpen(open);
+          if (!open) setDuplicateProduct(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Duplicate Product</DialogTitle>
+            <DialogDescription>
+              Create an independent copy of {duplicateProduct?.name}. Diagrams, models, threats,
+              and mitigations are copied; all security workflow states start fresh.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 py-4">
+            <Label htmlFor="duplicate-product-name">New product name</Label>
+            <Input
+              id="duplicate-product-name"
+              value={duplicateName}
+              onChange={(event) => setDuplicateName(event.target.value)}
+              autoFocus
+            />
+            <p className="text-xs text-muted-foreground">
+              Risk assessments, Jira project settings, acceptance decisions, comments, version
+              history, collaborators, and public visibility are not copied.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDuplicateOpen(false)} disabled={duplicating}>
+              Cancel
+            </Button>
+            <Button onClick={handleDuplicate} disabled={!duplicateName.trim() || duplicating}>
+              {duplicating ? 'Duplicating...' : 'Duplicate Product'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>

@@ -38,6 +38,7 @@ def call_tool(client: TestClient, headers: dict, name: str, arguments: dict | No
 def tool_value(result: dict):
     """FastMCP puts list-returning tools under structuredContent.result; a
     bare `dict` return type only produces a JSON-text content block."""
+    assert not result.get("isError"), result
     if "structuredContent" in result:
         return result["structuredContent"]["result"]
     return json.loads(result["content"][0]["text"])
@@ -153,6 +154,7 @@ def test_valid_token_lists_all_tools(client: TestClient, admin_headers: dict):
         "list_diagram_mitigations",
         "search_threatatlas",
         "list_frameworks",
+        "create_custom_framework",
         "list_diagram_models",
         "create_diagram_model",
         "list_knowledge_base_mitigations",
@@ -166,9 +168,39 @@ def test_valid_token_lists_all_tools(client: TestClient, admin_headers: dict):
         "create_custom_mitigation",
         "remove_mitigation_from_diagram",
         "list_component_templates",
+        "create_component_template",
         "apply_component_template",
         "get_product_security_status",
     }
+
+
+def test_diagram_tools_advertise_supported_nodes_and_edge_handles(client: TestClient, admin_headers: dict):
+    resp = rpc_post(
+        client,
+        admin_headers,
+        {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}},
+    )
+    assert resp.status_code == 200
+    tools = resp.json()["result"]["tools"]
+
+    for tool_name in ("create_diagram", "update_diagram"):
+        tool = next(tool for tool in tools if tool["name"] == tool_name)
+        schema = tool["inputSchema"]
+        node_schema = schema["$defs"]["MCPDiagramNode"]
+        node_data_schema = schema["$defs"]["MCPDiagramNodeData"]
+        edge_schema = schema["$defs"]["MCPDiagramEdge"]
+        assert node_schema["properties"]["type"]["const"] == "custom"
+        assert node_data_schema["properties"]["type"]["enum"] == [
+            "process", "datastore", "external", "boundary",
+        ]
+        assert edge_schema["properties"]["sourceHandle"]["enum"] == [
+            "source-top", "source-right", "source-bottom", "source-left",
+        ]
+        assert edge_schema["properties"]["targetHandle"]["enum"] == [
+            "target-top", "target-right", "target-bottom", "target-left",
+        ]
+        assert {"sourceHandle", "targetHandle"} <= set(edge_schema["required"])
+        assert "pair source-right with target-left" in edge_schema["properties"]["targetHandle"]["description"]
 
 
 # ── Read tools ──────────────────────────────────────────────────────────────
@@ -458,7 +490,33 @@ def test_update_diagram_threat_rejected_for_read_only(client: TestClient, standa
 
 def test_create_diagram_with_data(client: TestClient, standard_user: User, user_headers: dict, db: Session):
     product = _create_product(db, standard_user)
-    graph = {"nodes": [{"id": "n1", "type": "process", "position": {"x": 0, "y": 0}, "data": {"label": "API"}}], "edges": []}
+    graph = {
+        "nodes": [
+            {
+                "id": "n1",
+                "type": "custom",
+                "position": {"x": 0, "y": 0},
+                "data": {"label": "API", "type": "process"},
+            },
+            {
+                "id": "n2",
+                "type": "custom",
+                "position": {"x": 300, "y": 0},
+                "data": {"label": "Client", "type": "external"},
+            }
+        ],
+        "edges": [
+            {
+                "id": "e1",
+                "source": "n2",
+                "target": "n1",
+                "type": "custom",
+                "sourceHandle": "source-left",
+                "targetHandle": "target-right",
+                "animated": True,
+            }
+        ],
+    }
     result = call_tool(client, user_headers, "create_diagram", {
         "product_id": product.id,
         "name": "AI-drawn diagram",
@@ -467,6 +525,89 @@ def test_create_diagram_with_data(client: TestClient, standard_user: User, user_
     created = tool_value(result)
     assert created["name"] == "AI-drawn diagram"
     assert created["diagram_data"] == graph
+
+
+def test_create_diagram_rejects_plain_react_flow_node(
+    client: TestClient,
+    standard_user: User,
+    user_headers: dict,
+    db: Session,
+):
+    product = _create_product(db, standard_user)
+    graph = {
+        "nodes": [
+            {
+                "id": "n1",
+                "type": "default",
+                "position": {"x": 0, "y": 0},
+                "data": {"label": "API", "type": "process"},
+            }
+        ],
+        "edges": [],
+    }
+    result = call_tool(client, user_headers, "create_diagram", {
+        "product_id": product.id,
+        "name": "Invalid diagram",
+        "diagram_data": graph,
+    })
+    error = tool_error_text(result)
+    assert "diagram_data.nodes.0.type" in error
+    assert "custom" in error
+
+
+def test_create_diagram_requires_architecture_subtype(
+    client: TestClient,
+    standard_user: User,
+    user_headers: dict,
+    db: Session,
+):
+    product = _create_product(db, standard_user)
+    graph = {
+        "nodes": [
+            {
+                "id": "n1",
+                "type": "custom",
+                "position": {"x": 0, "y": 0},
+                "data": {"label": "API"},
+            }
+        ],
+        "edges": [],
+    }
+    result = call_tool(client, user_headers, "create_diagram", {
+        "product_id": product.id,
+        "name": "Invalid diagram",
+        "diagram_data": graph,
+    })
+    assert "diagram_data.nodes.0.data.type" in tool_error_text(result)
+
+
+def test_create_diagram_requires_edge_handles(
+    client: TestClient,
+    standard_user: User,
+    user_headers: dict,
+    db: Session,
+):
+    product = _create_product(db, standard_user)
+    graph = {
+        "nodes": [
+            {
+                "id": node_id,
+                "type": "custom",
+                "position": {"x": x, "y": 0},
+                "data": {"label": node_id, "type": "process"},
+            }
+            for node_id, x in (("n1", 0), ("n2", 300))
+        ],
+        "edges": [{"id": "e1", "source": "n1", "target": "n2"}],
+    }
+    result = call_tool(client, user_headers, "create_diagram", {
+        "product_id": product.id,
+        "name": "Invalid edge handles",
+        "diagram_data": graph,
+    })
+    error = tool_error_text(result)
+    assert "diagram_data.edges.0.sourceHandle" in error
+    assert "diagram_data.edges.0.targetHandle" in error
 
 
 def test_create_diagram_rejected_for_unowned_product(client: TestClient, standard_user: User, other_user: User, db: Session):
@@ -481,7 +622,17 @@ def test_create_diagram_rejected_for_unowned_product(client: TestClient, standar
 def test_update_diagram_redraws_data(client: TestClient, standard_user: User, user_headers: dict, db: Session):
     product = _create_product(db, standard_user)
     diagram = _create_diagram(db, product)
-    graph = {"nodes": [{"id": "n1", "type": "datastore", "position": {"x": 1, "y": 1}, "data": {"label": "DB"}}], "edges": []}
+    graph = {
+        "nodes": [
+            {
+                "id": "n1",
+                "type": "custom",
+                "position": {"x": 1, "y": 1},
+                "data": {"label": "DB", "type": "datastore"},
+            }
+        ],
+        "edges": [],
+    }
     result = call_tool(client, user_headers, "update_diagram", {
         "diagram_id": diagram.id,
         "diagram_data": graph,
@@ -507,6 +658,26 @@ def test_list_frameworks(client: TestClient, standard_user: User, user_headers: 
     result = call_tool(client, user_headers, "list_frameworks")
     names = [f["name"] for f in tool_value(result)]
     assert "STRIDE" in names
+
+
+def test_create_custom_framework(client: TestClient, standard_user: User, user_headers: dict):
+    result = call_tool(client, user_headers, "create_custom_framework", {
+        "name": "Custom Security Model",
+        "description": "Created through MCP",
+    })
+    created = tool_value(result)
+    assert created["name"] == "Custom Security Model"
+    assert created["description"] == "Created through MCP"
+    assert created["is_custom"] is True
+    assert created["user_id"] == standard_user.id
+
+
+def test_create_custom_framework_rejected_for_read_only(client: TestClient, db: Session):
+    read_only_user = _create_user(db, "readonly-framework@test.com", role=UserRole.READ_ONLY.value)
+    result = call_tool(client, make_auth_headers(read_only_user), "create_custom_framework", {
+        "name": "Read-only Framework",
+    })
+    assert "403" in tool_error_text(result)
 
 
 def test_create_diagram_model(client: TestClient, standard_user: User, user_headers: dict, db: Session):
@@ -640,6 +811,52 @@ def test_list_component_templates(client: TestClient, standard_user: User, user_
     groups = tool_value(result)
     all_names = [t["name"] for group in groups for t in group["components"]]
     assert "Redis Cache" in all_names
+
+
+def test_create_component_template(client: TestClient, admin_headers: dict, db: Session):
+    framework = _create_framework(db)
+    threat = _create_threat(db, framework, "Cache poisoning")
+    mitigation = _create_mitigation(db, framework, "Validate cache keys")
+    threat.category = "Tampering"
+    mitigation.category = "Input validation"
+    db.flush()
+
+    result = call_tool(client, admin_headers, "create_component_template", {
+        "name": "Session Cache",
+        "slug": "session-cache",
+        "category": "Databases",
+        "node_type": "datastore",
+        "description": "Stores user session data.",
+        "threat_ids": [threat.id],
+        "mitigation_ids": [mitigation.id],
+    })
+
+    created = tool_value(result)
+    assert created["name"] == "Session Cache"
+    assert created["is_custom"] is True
+    assert [item["id"] for item in created["threats"]] == [threat.id]
+    assert [item["id"] for item in created["mitigations"]] == [mitigation.id]
+    assert created["threats"][0]["category"] == "Tampering"
+    assert created["mitigations"][0]["category"] == "Input validation"
+
+    # The REST detail endpoint uses the same linked-item response schemas.
+    response = client.get(f"/api/component-templates/{created['id']}", headers=admin_headers)
+    assert response.status_code == 200, response.text
+    detail = response.json()
+    assert detail["threats"] == created["threats"]
+    assert detail["mitigations"] == created["mitigations"]
+
+
+def test_create_component_template_rejected_for_non_admin(
+    client: TestClient, standard_user: User, user_headers: dict,
+):
+    result = call_tool(client, user_headers, "create_component_template", {
+        "name": "Unauthorized Component",
+        "slug": "unauthorized-component",
+        "category": "Databases",
+        "node_type": "datastore",
+    })
+    assert "403" in tool_error_text(result)
 
 
 def test_apply_component_template(client: TestClient, standard_user: User, user_headers: dict, db: Session):

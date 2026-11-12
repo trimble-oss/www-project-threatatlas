@@ -24,7 +24,7 @@ Welcome to **ThreatAtlas** — a platform for community-driven threat modeling.
 ## First Login
 
 ### 1. Open ThreatAtlas
-Navigate to your hosted URL (default: **http://localhost:3000** for local installs).
+Navigate to your hosted URL (default: **http://localhost:3001** for local installs).
 
 ### 2. Log In
 
@@ -79,6 +79,17 @@ The product detail page shows:
 - A summary of **threats** and **mitigations** across all diagrams
 - Threat severity breakdown
 
+#### Duplicating a Product
+
+Editors can use the **Duplicate** action on a product card to create an
+independent product from an existing threat model. The copy retains diagrams,
+models, threat assignments, mitigation assignments, and attack-technique links.
+
+The new product starts a separate security workflow: models return to **In
+Progress**, threats to **Identified**, and mitigations to **Proposed**. Risk
+assessments, acceptance decisions, comments, diagram history, snapshots,
+collaborators, Jira project settings, and public visibility are not copied.
+
 ---
 
 ### Data Flow Diagrams
@@ -129,11 +140,12 @@ Click any threat card in the side panel to open the **Threat Details Sheet**.
 
 The sheet shows:
 - Threat name, description, and category
-- **Severity** (Low / Medium / High / Critical) based on the risk score
+- **Inherent risk** (likelihood × impact before mitigations)
+- **Residual risk** (a separate, manually reassessed likelihood × impact after controls are implemented)
 - **Status** (Identified / Mitigated / Accepted)
 - **Linked Mitigations**
 
-You can update the threat's status and notes directly in the sheet.
+Set the inherent likelihood and impact first. After controls are implemented, reassess residual likelihood and impact and provide a short rationale. Changing a mitigation's status does not automatically change either risk score.
 
 #### Managing Mitigations for a Threat
 
@@ -248,7 +260,7 @@ docker compose logs postgres
 docker compose logs frontend
 ```
 
-### Cannot connect to http://localhost:3000
+### Cannot connect to http://localhost:3001
 
 - Make sure Docker is running: `docker info`
 - Check that the frontend container is up: `docker compose ps`
@@ -295,7 +307,7 @@ docker compose up -d          # Rebuild and start fresh
 
 ### Viewing API Documentation
 
-The backend provides interactive API docs at **http://localhost:8000/docs** (Swagger UI). This is useful for verifying the API is working correctly.
+The backend provides interactive API docs at **http://localhost:8000/docs** (Scalar API reference). This is useful for verifying the API is working correctly.
 
 ---
 
@@ -309,4 +321,4 @@ The backend provides interactive API docs at **http://localhost:8000/docs** (Swa
 | Check status | `docker compose ps` |
 | Remove everything | `docker compose down -v` |
 
-Open **http://localhost:3000** to access ThreatAtlas after starting.
+Open **http://localhost:3001** to access ThreatAtlas after starting.
