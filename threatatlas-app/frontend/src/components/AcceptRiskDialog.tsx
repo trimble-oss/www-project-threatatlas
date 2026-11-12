@@ -17,9 +17,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
-import { AlertTriangle } from 'lucide-react';
-import { usersApi } from '@/lib/api';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { AlertTriangle, CalendarIcon } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { productMembersApi } from '@/lib/api';
 import { toast } from 'sonner';
 
 interface Member {
@@ -53,6 +56,7 @@ export function AcceptRiskDialog({
   const [justification, setJustification] = useState('');
   const [approverId, setApproverId] = useState<string>('none');
   const [reviewDate, setReviewDate] = useState('');
+  const [dateOpen, setDateOpen] = useState(false);
   const [members, setMembers] = useState<Member[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
 
@@ -64,13 +68,22 @@ export function AcceptRiskDialog({
       return;
     }
 
+    if (!productId) {
+      setMembers([]);
+      toast.error('Cannot load approvers because the product could not be identified.');
+      return;
+    }
+
     setLoadingMembers(true);
-    usersApi
-      .list()
+    productMembersApi
+      .list(productId)
       .then((res) => setMembers(res.data))
-      .catch(() => setMembers([]))
+      .catch(() => {
+        setMembers([]);
+        toast.error('Failed to load eligible approvers for this product.');
+      })
       .finally(() => setLoadingMembers(false));
-  }, [open]);
+  }, [open, productId]);
 
   const isValid = justification.trim().length >= 10;
 
@@ -88,7 +101,7 @@ export function AcceptRiskDialog({
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            <AlertTriangle className="h-4 w-4 text-warning" />
             Accept Risk — {threatName}
           </DialogTitle>
           <DialogDescription>
@@ -138,13 +151,31 @@ export function AcceptRiskDialog({
           {/* Review date */}
           <div className="space-y-1.5">
             <Label htmlFor="review-date">Review Date <span className="text-muted-foreground text-xs">(optional)</span></Label>
-            <Input
-              id="review-date"
-              type="date"
-              value={reviewDate}
-              onChange={(e) => setReviewDate(e.target.value)}
-              className="w-full"
-            />
+            <Popover open={dateOpen} onOpenChange={setDateOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  id="review-date"
+                  type="button"
+                  variant="outline"
+                  className={cn('w-full justify-start font-normal', !reviewDate && 'text-muted-foreground')}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {reviewDate ? format(parseISO(reviewDate), 'PPP') : 'Pick a date'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={reviewDate ? parseISO(reviewDate) : undefined}
+                  onSelect={(d) => {
+                    setReviewDate(d ? format(d, 'yyyy-MM-dd') : '');
+                    setDateOpen(false);
+                  }}
+                  disabled={{ before: new Date() }}
+                  autoFocus
+                />
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
 
@@ -155,7 +186,7 @@ export function AcceptRiskDialog({
           <Button
             disabled={!isValid}
             onClick={handleConfirm}
-            className="bg-amber-500 hover:bg-amber-600 text-white"
+            className="bg-warning hover:bg-warning/90 text-white"
           >
             Accept Risk
           </Button>

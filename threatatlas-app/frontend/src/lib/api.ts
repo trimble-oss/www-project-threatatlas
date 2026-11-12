@@ -1,6 +1,31 @@
 import axios from 'axios';
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+export function resolveApiBaseUrl(
+  configuredUrl: string | undefined,
+  isDevelopment: boolean,
+  pageOrigin: string,
+): string {
+  const normalizedUrl = configuredUrl?.trim().replace(/\/+$/, '');
+
+  // `/api` is a common deployment value, but the API client appends that
+  // prefix itself. Treat it as an explicit request for the current origin.
+  if (normalizedUrl === '/api') return pageOrigin;
+  if (normalizedUrl) return normalizedUrl;
+
+  return isDevelopment ? 'http://localhost:8000' : pageOrigin;
+}
+
+export const API_BASE_URL = resolveApiBaseUrl(
+  import.meta.env.VITE_API_URL,
+  import.meta.env.DEV,
+  window.location.origin,
+);
+
+export function resolveWebSocketBaseUrl(apiBaseUrl: string): string {
+  return apiBaseUrl.replace(/^http/, 'ws');
+}
+
+export const WEBSOCKET_BASE_URL = resolveWebSocketBaseUrl(API_BASE_URL);
 
 export const api = axios.create({
   baseURL: `${API_BASE_URL}/api`,
@@ -235,6 +260,7 @@ export const productsApi = {
   list: () => api.get('/products'),
   get: (id: number) => api.get(`/products/${id}`),
   create: (data: ProductInput & { name: string }) => api.post('/products', data),
+  duplicate: (id: number, name: string) => api.post(`/products/${id}/duplicate`, { name }),
   update: (id: number, data: ProductInput) => api.put(`/products/${id}`, data),
   delete: (id: number) => api.delete(`/products/${id}`),
 };
@@ -259,8 +285,30 @@ export const threatsApi = {
 };
 
 // Mitigation API
+const MITIGATION_PAGE_SIZE = 100;
+
+async function listAllMitigations(params?: { framework_id?: number; is_custom?: boolean }) {
+  const firstResponse = await api.get('/mitigations', {
+    params: { ...params, skip: 0, limit: MITIGATION_PAGE_SIZE },
+  });
+  const data = [...firstResponse.data];
+
+  while (data.length > 0 && data.length % MITIGATION_PAGE_SIZE === 0) {
+    const response = await api.get('/mitigations', {
+      params: { ...params, skip: data.length, limit: MITIGATION_PAGE_SIZE },
+    });
+    data.push(...response.data);
+
+    if (response.data.length < MITIGATION_PAGE_SIZE) break;
+  }
+
+  return { ...firstResponse, data };
+}
+
 export const mitigationsApi = {
-  list: (params?: { framework_id?: number; is_custom?: boolean }) => api.get('/mitigations', { params }),
+  // Mitigation search is performed client-side, so callers need the complete
+  // catalogue rather than the backend's default first page.
+  list: listAllMitigations,
   get: (id: number) => api.get(`/mitigations/${id}`),
   create: (data: { framework_id: number; name: string; description?: string; category?: string; is_custom?: boolean }) => api.post('/mitigations', data),
   update: (id: number, data: { name?: string; description?: string; category?: string }) => api.put(`/mitigations/${id}`, data),
@@ -307,6 +355,9 @@ export const diagramThreatsApi = {
     comments?: string;
     likelihood?: number | null;
     impact?: number | null;
+    residual_likelihood?: number | null;
+    residual_impact?: number | null;
+    residual_comments?: string | null;
     acceptance_justification?: string | null;
     acceptance_approver_id?: number | null;
     acceptance_review_date?: string | null;
@@ -388,10 +439,15 @@ export interface PortfolioAnalytics {
   totals: { products: number; diagrams: number; threats: number; mitigations: number };
   threats_by_severity: SeverityCounts;
   residual_by_severity: SeverityCounts;
+  paired_inherent_by_severity: SeverityCounts;
+  paired_residual_by_severity: SeverityCounts;
+  residual_assessed_count: number;
+  average_score_reduction: number | null;
   threats_by_status: Record<string, number>;
   mitigations_by_status: Record<string, number>;
   threats_by_category: { category: string; count: number }[];
   risk_matrix: { likelihood: number; impact: number; count: number }[];
+  residual_risk_matrix: { likelihood: number; impact: number; count: number }[];
   by_product: {
     product_id: number;
     product_name: string;
@@ -405,6 +461,7 @@ export interface PortfolioAnalytics {
     mitigations: number;
   }[];
   mitigation_ratio: number;
+  mitigated_threat_count: number;
   risk_reduction: number;
   unmitigated_high_critical: number;
   top_risk_products: { product_id: number; product_name: string; open_high_critical: number }[];
@@ -517,7 +574,7 @@ export const componentTemplatesApi = {
   update: (id: number, data: { name?: string; slug?: string; category?: string; node_type?: string; icon?: string; description?: string; threat_ids?: number[]; mitigation_ids?: number[] }) => api.put('/component-templates/' + id, data),
   remove: (id: number) => api.delete('/component-templates/' + id),
   revert: (id: number) => api.post(`/component-templates/${id}/revert`),
-  apply: (id: number, data: { diagram_id: number; model_id: number; element_id: string; element_type?: string; threat_ids?: number[]; mitigation_ids?: number[] }) =>
+  apply: (id: number, data: { diagram_id: number; model_id: number; element_id: string; element_type?: string; threat_ids?: number[]; mitigation_ids?: number[]; mitigation_links?: { threat_id: number; mitigation_id: number }[] }) =>
     api.post<{ threats_added: number; mitigations_added: number; threats_skipped: number; mitigations_skipped: number }>(`/component-templates/${id}/apply`, data),
   addKbLinks: (id: number, data: { threat_ids?: number[]; mitigation_ids?: number[] }) => api.post(`/component-templates/${id}/kb-links`, data),
   removeKbThreat: (id: number, threatId: number) => api.delete(`/component-templates/${id}/kb-links/threats/${threatId}`),

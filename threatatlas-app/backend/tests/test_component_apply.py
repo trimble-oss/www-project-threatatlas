@@ -2,7 +2,9 @@
 (POST /component-templates/{id}/apply)."""
 
 import pytest
+
 from fastapi.testclient import TestClient
+from sqlalchemy import event
 from sqlalchemy.orm import Session
 
 from app.models import (
@@ -119,6 +121,95 @@ def test_apply_is_idempotent(client: TestClient, standard_user: User, user_heade
     assert data["threats_skipped"] == 2 and data["mitigations_skipped"] == 2
 
 
+@pytest.mark.parametrize(
+    ("resource", "update"),
+    [
+        ("diagram-threats", {"likelihood": 4}),
+        ("diagram-mitigations", {"comments": "Reviewed control"}),
+    ],
+)
+def test_attachment_order_and_pagination_survive_updates(
+    client: TestClient,
+    standard_user: User,
+    user_headers: dict,
+    db: Session,
+    resource: str,
+    update: dict,
+):
+    ids = _setup(db, standard_user)
+    applied = client.post(
+        f"/api/component-templates/{ids['template_id']}/apply",
+        json=_body(ids),
+        headers=user_headers,
+    )
+    assert applied.status_code == 200
+
+    url = f"/api/{resource}"
+    filters = {
+        "diagram_id": ids["diagram_id"],
+        "model_id": ids["model_id"],
+        "element_id": "node-1",
+    }
+    before = client.get(url, params=filters, headers=user_headers)
+    assert before.status_code == 200
+    attachment_ids = [item["id"] for item in before.json()]
+    assert len(attachment_ids) == 2
+    assert attachment_ids == sorted(attachment_ids)
+
+    changed = client.put(
+        f"{url}/{attachment_ids[0]}", json=update, headers=user_headers
+    )
+    assert changed.status_code == 200
+
+    after = client.get(url, params=filters, headers=user_headers)
+    assert after.status_code == 200
+    assert [item["id"] for item in after.json()] == attachment_ids
+
+    for skip, expected_id in enumerate(attachment_ids):
+        page = client.get(
+            url, params={**filters, "skip": skip, "limit": 1}, headers=user_headers
+        )
+        assert page.status_code == 200
+        assert [item["id"] for item in page.json()] == [expected_id]
+
+
+@pytest.mark.parametrize("resource", ["diagram-threats", "diagram-mitigations"])
+def test_attachment_pagination_has_explicit_database_order(
+    client: TestClient,
+    standard_user: User,
+    user_headers: dict,
+    db: Session,
+    resource: str,
+):
+    ids = _setup(db, standard_user)
+    statements = []
+
+    def capture_sql(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    connection = db.connection()
+    event.listen(connection, "before_cursor_execute", capture_sql)
+    try:
+        response = client.get(
+            f"/api/{resource}",
+            params={"diagram_id": ids["diagram_id"], "skip": 1, "limit": 1},
+            headers=user_headers,
+        )
+    finally:
+        event.remove(connection, "before_cursor_execute", capture_sql)
+    assert response.status_code == 200
+
+    # Small datasets can appear ordered even without ORDER BY. Verify the query
+    # contract as well so this regression does not depend on PostgreSQL's plan.
+    table = resource.replace("-", "_")
+    queries = [sql for sql in statements if f"FROM {table} " in sql]
+    assert len(queries) == 1
+    sql = queries[0]
+    order = f"ORDER BY {table}.id"
+    assert order in sql
+    assert sql.index(order) < sql.index("LIMIT")
+
+
 def test_apply_subset_via_ids(client: TestClient, standard_user: User, user_headers: dict, db: Session):
     ids = _setup(db, standard_user)
     resp = client.post(
@@ -129,6 +220,67 @@ def test_apply_subset_via_ids(client: TestClient, standard_user: User, user_head
     data = resp.json()
     assert data["threats_added"] == 1
     assert data["mitigations_added"] == 0
+
+
+def test_apply_links_mitigations_to_imported_threats(
+    client: TestClient, standard_user: User, user_headers: dict, db: Session
+):
+    ids = _setup(db, standard_user)
+    links = [
+        {"threat_id": ids["threat_ids"][0], "mitigation_id": ids["mitigation_ids"][0]},
+        {"threat_id": ids["threat_ids"][1], "mitigation_id": ids["mitigation_ids"][1]},
+    ]
+
+    resp = client.post(
+        f"/api/component-templates/{ids['template_id']}/apply",
+        json=_body(ids, mitigation_links=links),
+        headers=user_headers,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["mitigations_added"] == 2
+    diagram_threats = {
+        threat.threat_id: threat.id
+        for threat in db.query(DiagramThreat).filter(DiagramThreat.element_id == "node-1").all()
+    }
+    diagram_mitigations = db.query(DiagramMitigation).filter(
+        DiagramMitigation.element_id == "node-1"
+    ).all()
+    assert {
+        (mitigation.mitigation_id, mitigation.threat_id)
+        for mitigation in diagram_mitigations
+    } == {
+        (ids["mitigation_ids"][0], diagram_threats[ids["threat_ids"][0]]),
+        (ids["mitigation_ids"][1], diagram_threats[ids["threat_ids"][1]]),
+    }
+    assert all(mitigation.threat_id is not None for mitigation in diagram_mitigations)
+
+
+def test_apply_repairs_previously_unlinked_mitigation(
+    client: TestClient, standard_user: User, user_headers: dict, db: Session
+):
+    ids = _setup(db, standard_user)
+    url = f"/api/component-templates/{ids['template_id']}/apply"
+    selected = _body(
+        ids,
+        threat_ids=[ids["threat_ids"][0]],
+        mitigation_ids=[ids["mitigation_ids"][0]],
+    )
+    client.post(url, json=selected, headers=user_headers)
+    mitigation = db.query(DiagramMitigation).one()
+    assert mitigation.threat_id is None
+
+    selected["mitigation_links"] = [{
+        "threat_id": ids["threat_ids"][0],
+        "mitigation_id": ids["mitigation_ids"][0],
+    }]
+    resp = client.post(url, json=selected, headers=user_headers)
+
+    assert resp.status_code == 200
+    assert db.query(DiagramMitigation).count() == 1
+    db.refresh(mitigation)
+    diagram_threat = db.query(DiagramThreat).filter_by(threat_id=ids["threat_ids"][0]).one()
+    assert mitigation.threat_id == diagram_threat.id
 
 
 def test_apply_skips_foreign_framework(client: TestClient, standard_user: User, user_headers: dict, db: Session):

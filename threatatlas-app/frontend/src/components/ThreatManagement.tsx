@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { diagramThreatsApi, threatsApi, frameworksApi, diagramMitigationsApi, mitigationsApi } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,8 +34,10 @@ import {
 } from '@/components/ui/alert-dialog';
 import { AlertTriangle, Plus, Trash2, Search, X, Shield, ChevronDown, Layers, Target, Sparkles } from 'lucide-react';
 import { RiskSelector } from '@/components/RiskSelector';
+import { ResidualRiskAssessment } from '@/components/ResidualRiskAssessment';
 import { getSeverityVariant, getSeverityStripeClass, getStatusClasses } from '@/lib/risk';
 import { CommentSection } from '@/components/CommentSection';
+import { AcceptRiskDialog } from '@/components/AcceptRiskDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -62,6 +64,11 @@ interface DiagramThreat {
   likelihood: number | null;
   impact: number | null;
   risk_score: number | null;
+  residual_likelihood: number | null;
+  residual_impact: number | null;
+  residual_risk_score: number | null;
+  residual_severity: 'low' | 'medium' | 'high' | 'critical' | null;
+  residual_comments: string | null;
   severity: 'low' | 'medium' | 'high' | 'critical' | null;
   element_id: string;
   threat: Threat;
@@ -73,6 +80,12 @@ interface DiagramThreatUpdate {
   comments?: string;
   likelihood?: number | null;
   impact?: number | null;
+  residual_likelihood?: number | null;
+  residual_impact?: number | null;
+  residual_comments?: string | null;
+  acceptance_justification?: string | null;
+  acceptance_approver_id?: number | null;
+  acceptance_review_date?: string | null;
 }
 
 interface DiagramMitigationUpdate {
@@ -82,11 +95,13 @@ interface DiagramMitigationUpdate {
 }
 
 interface ThreatManagementProps {
+  productId?: number | null;
   diagramId: number | null;
   activeModelId: number | null;
   modelFrameworkId: number | null;
   elementId: string;
   elementType: string;
+  canEdit?: boolean;
 }
 
 // ── Severity dot ──────────────────────────────────────────────────────────────
@@ -132,8 +147,9 @@ function StatusPill({ status, type = 'threat' }: { status: string; type?: 'threa
   );
 }
 
-export default function ThreatManagement({ diagramId, activeModelId, modelFrameworkId, elementId, elementType }: ThreatManagementProps) {
-  const { user, canWrite } = useAuth();
+export default function ThreatManagement({ diagramId, productId, activeModelId, modelFrameworkId, elementId, elementType, canEdit }: ThreatManagementProps) {
+  const { user, canWrite: globalCanWrite } = useAuth();
+  const canWrite = canEdit ?? globalCanWrite;
   const authorName = user?.full_name || user?.email || 'Unknown User';
   const [attachedThreats, setAttachedThreats] = useState<DiagramThreat[]>([]);
   const [availableThreats, setAvailableThreats] = useState<Threat[]>([]);
@@ -149,6 +165,7 @@ export default function ThreatManagement({ diagramId, activeModelId, modelFramew
   const [mitigationSearchQuery, setMitigationSearchQuery] = useState('');
 
   const [threatToDelete, setThreatToDelete] = useState<DiagramThreat | null>(null);
+  const [threatPendingAcceptance, setThreatPendingAcceptance] = useState<DiagramThreat | null>(null);
   const [mitigationToDelete, setMitigationToDelete] = useState<any>(null);
 
   const [createThreatDialogOpen, setCreateThreatDialogOpen] = useState(false);
@@ -157,15 +174,35 @@ export default function ThreatManagement({ diagramId, activeModelId, modelFramew
   const [mitigationForm, setMitigationForm] = useState({ name: '', description: '', category: '', framework_id: 0 });
 
   const [expandedThreats, setExpandedThreats] = useState<Record<number, boolean>>({});
+  const loadRequestRef = useRef(0);
+
+  useEffect(() => {
+    if (!canWrite) {
+      setAddDialogOpen(false);
+      setAddMitigationDialogOpen(false);
+      setCreateThreatDialogOpen(false);
+      setCreateMitigationDialogOpen(false);
+      setThreatToDelete(null);
+      setThreatPendingAcceptance(null);
+      setMitigationToDelete(null);
+    }
+  }, [canWrite]);
 
   const toggleThreat = (threatId: number) => {
     setExpandedThreats(prev => ({ ...prev, [threatId]: !prev[threatId] }));
   };
 
-  useEffect(() => { loadData(); }, [diagramId, elementId, activeModelId]);
-
-  const loadData = async () => {
-    if (!diagramId || !elementId) return;
+  const loadData = useCallback(async () => {
+    const requestId = ++loadRequestRef.current;
+    if (!diagramId || !elementId) {
+      setAttachedThreats([]);
+      setAvailableThreats([]);
+      setFrameworks([]);
+      setElementMitigations([]);
+      setAvailableMitigations([]);
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const threatParams: any = { diagram_id: diagramId };
@@ -181,21 +218,30 @@ export default function ThreatManagement({ diagramId, activeModelId, modelFramew
         modelFrameworkId ? mitigationsApi.list({ framework_id: modelFrameworkId }) : Promise.resolve({ data: [] }),
       ]);
 
+      if (requestId !== loadRequestRef.current) return;
       setAttachedThreats(threatsRes.data.filter((dt: DiagramThreat) => dt.element_id === elementId));
       setAvailableThreats(availableRes.data);
       setFrameworks(frameworksRes.data);
       setElementMitigations(mitigationsRes.data.filter((dm: any) => dm.element_id === elementId));
       setAvailableMitigations(availableMitigationsRes.data);
     } catch (error) {
+      if (requestId !== loadRequestRef.current) return;
       console.error('Error loading threats:', error);
       toast.error('Failed to load threats');
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestRef.current) setLoading(false);
     }
-  };
+  }, [diagramId, elementId, activeModelId, modelFrameworkId]);
+
+  useEffect(() => {
+    void loadData();
+    // Invalidate in-flight work on selection changes and unmount, including
+    // failures and loading-state updates from the previous selection.
+    return () => { loadRequestRef.current += 1; };
+  }, [loadData]);
 
   const handleAttachThreat = async (threat: Threat) => {
-    if (!activeModelId || !diagramId) return;
+    if (!canWrite || !activeModelId || !diagramId) return;
     try {
       await diagramThreatsApi.create({ diagram_id: diagramId, model_id: activeModelId, threat_id: threat.id, element_id: elementId, element_type: elementType, status: 'identified', comments: '' });
       setAddDialogOpen(false);
@@ -207,16 +253,53 @@ export default function ThreatManagement({ diagramId, activeModelId, modelFramew
     }
   };
 
-  const handleUpdateThreat = async (diagramThreatId: number, updates: DiagramThreatUpdate) => {
+  const updateThreat = async (diagramThreatId: number, updates: DiagramThreatUpdate) => {
+    if (!canWrite) return false;
     try {
       await diagramThreatsApi.update(diagramThreatId, updates);
-      loadData();
+      await loadData();
+      return true;
     } catch {
       toast.error('Failed to update threat');
+      return false;
+    }
+  };
+  const handleUpdateThreat = (diagramThreatId: number, updates: DiagramThreatUpdate) => {
+    void updateThreat(diagramThreatId, updates);
+  };
+
+
+  const handleThreatStatusChange = (threat: DiagramThreat, status: string) => {
+    if (status === 'accepted' && threat.status !== 'accepted') {
+      setThreatPendingAcceptance(threat);
+      return;
+    }
+
+    void handleUpdateThreat(threat.id, { status });
+  };
+
+  const handleAcceptRisk = async (data: {
+    justification: string;
+    approver_id?: number;
+    review_date?: string;
+  }) => {
+    if (!threatPendingAcceptance) return;
+
+    const updated = await updateThreat(threatPendingAcceptance.id, {
+      status: 'accepted',
+      acceptance_justification: data.justification,
+      acceptance_approver_id: data.approver_id ?? null,
+      acceptance_review_date: data.review_date ?? null,
+    });
+
+    if (updated) {
+      setThreatPendingAcceptance(null);
+      toast.success('Risk acceptance submitted');
     }
   };
 
   const handleRemoveThreat = async (diagramThreatId: number) => {
+    if (!canWrite) return;
     try {
       await diagramThreatsApi.delete(diagramThreatId);
       loadData();
@@ -227,7 +310,7 @@ export default function ThreatManagement({ diagramId, activeModelId, modelFramew
   };
 
   const handleAttachMitigation = async (mitigation: any) => {
-    if (!activeModelId || !diagramId) return;
+    if (!canWrite || !activeModelId || !diagramId) return;
     try {
       await diagramMitigationsApi.create({ diagram_id: diagramId, model_id: activeModelId, mitigation_id: mitigation.id, element_id: elementId, element_type: elementType, threat_id: currentThreat?.id, status: 'proposed', comments: '' });
       setAddMitigationDialogOpen(false);
@@ -241,6 +324,7 @@ export default function ThreatManagement({ diagramId, activeModelId, modelFramew
   };
 
   const handleRemoveMitigation = async (mitigationId: number) => {
+    if (!canWrite) return;
     try {
       await diagramMitigationsApi.delete(mitigationId);
       loadData();
@@ -251,6 +335,7 @@ export default function ThreatManagement({ diagramId, activeModelId, modelFramew
   };
 
   const handleUpdateMitigation = async (mitigationId: number, updates: DiagramMitigationUpdate) => {
+    if (!canWrite) return;
     try {
       await diagramMitigationsApi.update(mitigationId, updates);
       loadData();
@@ -260,7 +345,7 @@ export default function ThreatManagement({ diagramId, activeModelId, modelFramew
   };
 
   const handleCreateCustomThreat = async () => {
-    if (!threatForm.name || !threatForm.category || !modelFrameworkId) return;
+    if (!canWrite || !threatForm.name || !threatForm.category || !modelFrameworkId) return;
     try {
       const response = await threatsApi.create({ ...threatForm, framework_id: modelFrameworkId });
       setCreateThreatDialogOpen(false);
@@ -274,7 +359,7 @@ export default function ThreatManagement({ diagramId, activeModelId, modelFramew
   };
 
   const handleCreateCustomMitigation = async () => {
-    if (!mitigationForm.name || !mitigationForm.category || !modelFrameworkId) return;
+    if (!canWrite || !mitigationForm.name || !mitigationForm.category || !modelFrameworkId) return;
     try {
       const response = await mitigationsApi.create({ ...mitigationForm, framework_id: modelFrameworkId });
       setCreateMitigationDialogOpen(false);
@@ -318,17 +403,19 @@ export default function ThreatManagement({ diagramId, activeModelId, modelFramew
             </span>
           )}
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-7 gap-1.5 text-xs rounded-lg"
-          onClick={() => setAddDialogOpen(true)}
-          disabled={!activeModelId}
-          title={!activeModelId ? 'Select a model to add threats' : ''}
-        >
-          <Plus className="h-3 w-3" />
-          Add Threat
-        </Button>
+        {canWrite && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 gap-1.5 text-xs rounded-lg"
+            onClick={() => setAddDialogOpen(true)}
+            disabled={!activeModelId}
+            title={!activeModelId ? 'Select a model to add threats' : ''}
+          >
+            <Plus className="h-3 w-3" />
+            Add Threat
+          </Button>
+        )}
       </div>
 
       {/* ── Stats bar ──────────────────────────────────────────────────── */}
@@ -365,12 +452,14 @@ export default function ThreatManagement({ diagramId, activeModelId, modelFramew
           </div>
           <div>
             <p className="text-sm font-semibold mb-0.5">No threats identified</p>
-            {activeModelId ? (
+            {activeModelId && canWrite ? (
               <Button size="sm" variant="outline" onClick={() => setAddDialogOpen(true)} className="mt-2 gap-1.5 h-7 text-xs">
                 <Plus className="h-3 w-3" /> Add Threat
               </Button>
-            ) : (
+            ) : canWrite ? (
               <p className="text-xs text-muted-foreground max-w-[220px]">Select a model to start adding threats to this element.</p>
+            ) : (
+              <p className="text-xs text-muted-foreground max-w-[220px]">This diagram is read only.</p>
             )}
           </div>
         </div>
@@ -423,14 +512,14 @@ export default function ThreatManagement({ diagramId, activeModelId, modelFramew
                     )}
                     <StatusPill status={dt.status} type="threat" />
                     <div className="flex items-center">
-                      <Button
+                      {canWrite && <Button
                         variant="ghost"
                         size="sm"
                         className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
                         onClick={(e) => { e.stopPropagation(); setThreatToDelete(dt); }}
                       >
                         <Trash2 className="h-3 w-3" />
-                      </Button>
+                      </Button>}
                       <ChevronDown className={cn('h-3.5 w-3.5 text-muted-foreground/60 transition-transform duration-200', isExpanded && 'rotate-180')} />
                     </div>
                   </div>
@@ -446,7 +535,7 @@ export default function ThreatManagement({ diagramId, activeModelId, modelFramew
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <p className="text-[10px] font-bold text-muted-foreground tracking-wider mb-1.5">STATUS</p>
-                        <Select value={dt.status} onValueChange={(v) => handleUpdateThreat(dt.id, { status: v })}>
+                        <Select value={dt.status} onValueChange={(v) => handleThreatStatusChange(dt, v)} disabled={!canWrite}>
                           <SelectTrigger className="h-8 text-xs rounded-lg">
                             <SelectValue />
                           </SelectTrigger>
@@ -459,7 +548,7 @@ export default function ThreatManagement({ diagramId, activeModelId, modelFramew
                       </div>
                       {(dt.risk_score !== null || dt.severity) && (
                         <div>
-                          <p className="text-[10px] font-bold text-muted-foreground tracking-wider mb-1.5">SEVERITY / RISK</p>
+                          <p className="text-[10px] font-bold text-muted-foreground tracking-wider mb-1.5">INHERENT SEVERITY / RISK</p>
                           <div className="flex items-center gap-2 h-8">
                             {dt.severity && (
                               <Badge variant={getSeverityVariant(dt.severity)} className="capitalize text-[10px]">{dt.severity}</Badge>
@@ -476,14 +565,25 @@ export default function ThreatManagement({ diagramId, activeModelId, modelFramew
 
                     {/* Risk assessment */}
                     <div>
-                      <p className="text-[10px] font-bold text-muted-foreground tracking-wider mb-2">RISK ASSESSMENT</p>
+                      <p className="text-[10px] font-bold text-muted-foreground tracking-wider mb-2">INHERENT RISK (BEFORE MITIGATIONS)</p>
                       <RiskSelector
                         likelihood={dt.likelihood}
                         impact={dt.impact}
                         onLikelihoodChange={(v) => handleUpdateThreat(dt.id, { likelihood: v })}
                         onImpactChange={(v) => handleUpdateThreat(dt.id, { impact: v })}
+                        disabled={!canWrite}
                       />
                     </div>
+
+                    <ResidualRiskAssessment
+                      itemId={dt.id}
+                      inherentComplete={dt.likelihood != null && dt.impact != null}
+                      residual_likelihood={dt.residual_likelihood}
+                      residual_impact={dt.residual_impact}
+                      residual_comments={dt.residual_comments}
+                      disabled={!canWrite}
+                      onSave={(values) => handleUpdateThreat(dt.id, values)}
+                    />
 
                     {/* Comments */}
                     <CommentSection
@@ -505,7 +605,7 @@ export default function ThreatManagement({ diagramId, activeModelId, modelFramew
                             </span>
                           )}
                         </div>
-                        <Button
+                        {canWrite && <Button
                           size="sm"
                           variant="ghost"
                           className="h-6 text-[11px] gap-1 px-2 rounded-lg"
@@ -513,7 +613,7 @@ export default function ThreatManagement({ diagramId, activeModelId, modelFramew
                           onClick={() => { setCurrentThreat(dt); setAddMitigationDialogOpen(true); }}
                         >
                           <Plus className="h-3 w-3" /> Add
-                        </Button>
+                        </Button>}
                       </div>
 
                       {linkedMits.length === 0 ? (
@@ -531,7 +631,7 @@ export default function ThreatManagement({ diagramId, activeModelId, modelFramew
                                 <p className="text-xs font-semibold leading-snug">{dm.mitigation.name}</p>
                                 <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">{dm.mitigation.description}</p>
                                 <div className="flex items-center gap-2">
-                                  <Select value={dm.status} onValueChange={(v) => handleUpdateMitigation(dm.id, { status: v })}>
+                                  <Select value={dm.status} onValueChange={(v) => handleUpdateMitigation(dm.id, { status: v })} disabled={!canWrite}>
                                     <SelectTrigger className="h-6 text-[11px] w-auto px-2 rounded-md border-none bg-transparent gap-1 focus:ring-0">
                                       <SelectValue />
                                     </SelectTrigger>
@@ -549,14 +649,14 @@ export default function ThreatManagement({ diagramId, activeModelId, modelFramew
                                   onSave={(c) => handleUpdateMitigation(dm.id, { comments: c })}
                                 />
                               </div>
-                              <Button
+                              {canWrite && <Button
                                 variant="ghost"
                                 size="sm"
                                 className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive shrink-0"
                                 onClick={() => setMitigationToDelete(dm)}
                               >
                                 <Trash2 className="h-3 w-3" />
-                              </Button>
+                              </Button>}
                             </div>
                           ))}
                         </div>
@@ -770,6 +870,18 @@ export default function ThreatManagement({ diagramId, activeModelId, modelFramew
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {threatPendingAcceptance && diagramId && (
+        <AcceptRiskDialog
+          open
+          threatName={threatPendingAcceptance.threat.name}
+          diagramThreatId={threatPendingAcceptance.id}
+          diagramId={diagramId}
+          productId={productId ?? 0}
+          onConfirm={(data) => { void handleAcceptRisk(data); }}
+          onCancel={() => setThreatPendingAcceptance(null)}
+        />
+      )}
 
       {/* ── Create custom threat ── */}
       <Dialog open={createThreatDialogOpen} onOpenChange={setCreateThreatDialogOpen}>

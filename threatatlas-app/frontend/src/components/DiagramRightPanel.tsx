@@ -43,6 +43,7 @@ export interface DiagramRightPanelProps {
   onTabChange: (tab: 'inspector' | 'ai') => void;
   // AI chat props
   diagramId: number | null;
+  productId: number | null;
   activeModelId: number | null;
   frameworkId: number | null;
   unanalyzedNodes: DiagramNodeRef[];
@@ -490,7 +491,7 @@ function StreamingBubble({ content, thinkingStep, thinkingHistory }: { content: 
                     <span className="h-1 w-1 rounded-full bg-primary animate-bounce" style={{ animationDelay: '300ms' }} />
                   </span>
                 ) : (
-                  <svg className="h-3 w-3 shrink-0 text-emerald-500" viewBox="0 0 12 12" fill="none">
+                  <svg className="h-3 w-3 shrink-0 text-success" viewBox="0 0 12 12" fill="none">
                     <path d="M2 6l2.5 2.5L10 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 )}
@@ -691,17 +692,17 @@ function AIPanel({
 
       {/* Focus bar */}
       {focusedNodeIds.length > 0 && (
-        <div className="flex items-center justify-between px-3 py-1.5 border-b border-blue-500/20 shrink-0 gap-2" style={{ backgroundColor: 'color-mix(in srgb, #3b82f6 8%, transparent)' }}>
+        <div className="flex items-center justify-between px-3 py-1.5 border-b border-info/20 shrink-0 gap-2" style={{ backgroundColor: 'color-mix(in srgb, #3b82f6 8%, transparent)' }}>
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="text-sm shrink-0">🎯</span>
-            <span className="text-[11px] font-medium text-blue-600 dark:text-blue-400 truncate">
+            <span className="text-[11px] font-medium text-info truncate">
               Focused on {focusedNodeIds.length} element{focusedNodeIds.length !== 1 ? 's' : ''}
               {focusedNodeLabels.length > 0 && (
                 <> · {focusedNodeLabels.slice(0, 2).join(', ')}{focusedNodeLabels.length > 2 ? ` +${focusedNodeLabels.length - 2} more` : ''}</>
               )}
             </span>
           </div>
-          <button className="text-[11px] font-semibold shrink-0 px-1.5 py-0.5 rounded text-blue-600 dark:text-blue-400 hover:bg-blue-500/15" onClick={onClearFocus}>
+          <button className="text-[11px] font-semibold shrink-0 px-1.5 py-0.5 rounded text-info hover:bg-info/15" onClick={onClearFocus}>
             Clear
           </button>
         </div>
@@ -709,7 +710,7 @@ function AIPanel({
 
       {/* Incremental analysis banners */}
       {newNodesSinceSave.length > 0 && !isStreaming && (
-        <div className="flex items-center justify-between px-3 py-1.5 border-b border-amber-500/20 shrink-0 gap-2" style={{ backgroundColor: 'color-mix(in srgb, var(--lemon-500) 6%, transparent)' }}>
+        <div className="flex items-center justify-between px-3 py-1.5 border-b border-warning/20 shrink-0 gap-2" style={{ backgroundColor: 'color-mix(in srgb, var(--lemon-500) 6%, transparent)' }}>
           <div className="flex items-center gap-1.5 min-w-0">
             <GitBranch className="h-3 w-3 shrink-0" style={{ color: 'var(--risk-medium)' }} />
             <span className="text-[11px] font-medium truncate" style={{ color: 'var(--risk-medium)' }}>
@@ -910,11 +911,12 @@ function getNodeColorStyle(nodeType?: string): React.CSSProperties {
 }
 
 function InspectorPanel({
-  selectedElement, diagramId, activeModelId, activeModelFrameworkId, canWrite,
+  selectedElement, diagramId, productId, activeModelId, activeModelFrameworkId, canWrite,
   onRename, onDescriptionChange, onChangeNodeType, onDeleteElement,
 }: {
   selectedElement: DiagramRightPanelProps['selectedElement'];
   diagramId: number | null;
+  productId: number | null;
   activeModelId: number | null;
   activeModelFrameworkId: number | null;
   canWrite: boolean;
@@ -1094,11 +1096,14 @@ function InspectorPanel({
         <TabsContent value="threats" className="flex-1 overflow-y-auto mt-0 px-3 py-3">
           {diagramId ? (
             <ThreatManagement
+              key={JSON.stringify([productId, diagramId, activeModelId, activeModelFrameworkId, selectedElement.type, selectedElement.id])}
               diagramId={diagramId}
+              productId={productId}
               activeModelId={activeModelId}
               modelFrameworkId={activeModelFrameworkId}
               elementId={selectedElement.id}
               elementType={selectedElement.type}
+              canEdit={canWrite}
             />
           ) : (
             <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -1139,7 +1144,7 @@ function InspectorPanel({
 
 export default function DiagramRightPanel({
   activeTab, onTabChange,
-  diagramId, activeModelId, frameworkId,
+  diagramId, productId, activeModelId, frameworkId,
   unanalyzedNodes, newNodesSinceSave,
   focusedNodeIds, focusedNodeLabels, onClearFocus,
   onModelCreated, onProposalApproved,
@@ -1168,32 +1173,35 @@ export default function DiagramRightPanel({
             <span className="h-1.5 w-1.5 rounded-full bg-primary ml-0.5" />
           )}
         </button>
-        <button
-          onClick={() => onTabChange('ai')}
-          className={cn(
-            'flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors border-b-2',
-            activeTab === 'ai'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'
-          )}
-        >
-          <Sparkles className="h-3.5 w-3.5" />
-          AI Analysis
-          {pendingAICount > 0 && (
-            <span className="ml-0.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
-              {pendingAICount > 9 ? '9+' : pendingAICount}
-            </span>
-          )}
-        </button>
+        {canWrite && (
+          <button
+            onClick={() => onTabChange('ai')}
+            className={cn(
+              'flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors border-b-2',
+              activeTab === 'ai'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            )}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            AI Analysis
+            {pendingAICount > 0 && (
+              <span className="ml-0.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+                {pendingAICount > 9 ? '9+' : pendingAICount}
+              </span>
+            )}
+          </button>
+        )}
       </div>
 
       {/* Tab content */}
       <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-        {activeTab === 'inspector' ? (
+        {activeTab === 'inspector' || !canWrite ? (
           <InspectorPanel
             selectedElement={selectedElement}
             diagramId={diagramId}
             activeModelId={activeModelId}
+            productId={productId}
             activeModelFrameworkId={frameworkId}
             canWrite={canWrite}
             onRename={onRename}
